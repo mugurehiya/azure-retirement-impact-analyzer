@@ -1,0 +1,108 @@
+# Update queries.txt from KQL source
+#
+# Schedule: runs at 00:00 UTC on the 1st and 15th of every month
+#           (twice monthly / ~2 weeks). To change the schedule, update
+#           the cron value below and document the reason in a commit message.
+#
+# Trigger:  Can also be run manually via the Actions → Run workflow button
+#           (workflow_dispatch) which accepts an optional dry_run toggle.
+#
+# Secrets required (see README § Automation Setup):
+#   AZURE_CLIENT_ID          – App registration / managed identity client ID
+#   AZURE_TENANT_ID          – Azure AD tenant ID
+#   AZURE_SUBSCRIPTION_ID    – Target subscription ID
+#   LOG_ANALYTICS_WORKSPACE_ID – Log Analytics workspace containing the
+#                                RetirementQueries_CL custom table
+#   KQL_QUERY_OVERRIDE       – (optional) Full KQL string to use instead of
+#                                queries/fetch-retirement-queries.kql
+
+name: Update queries.txt from KQL source
+
+on:
+  schedule:
+    # 00:00 UTC on the 1st and 15th of every month (twice monthly / ~2 weeks)
+    - cron: "0 0 1,15 * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run – fetch & validate but do NOT create/update PR"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  id-token: write       # Required for OIDC Azure login
+  contents: write       # Required for peter-evans/create-pull-request to push
+  pull-requests: write  # Required to open / update the PR
+
+jobs:
+  update-queries:
+    name: Fetch KQL output → update queries.txt → open PR
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Check out the repository ────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Authenticate to Azure using OIDC (no stored secret) ─────────────
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── 3. Fetch KQL output and overwrite queries.txt ──────────────────────
+      - name: Fetch KQL output and update queries.txt
+        shell: pwsh
+        env:
+          LOG_ANALYTICS_WORKSPACE_ID: ${{ secrets.LOG_ANALYTICS_WORKSPACE_ID }}
+          KQL_QUERY_OVERRIDE:         ${{ secrets.KQL_QUERY_OVERRIDE }}
+        run: ./scripts/update-queries.ps1
+
+      # ── 4. Validate the updated queries.txt ────────────────────────────────
+      - name: Validate queries.txt
+        shell: pwsh
+        run: ./scripts/validate-queries.ps1
+
+      # ── 5. Create or update a pull request (skipped on dry run) ────────────
+      - name: Create pull request
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token:          ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: refresh queries.txt from KQL source (${{ github.run_id }})"
+          branch:         automated/update-queries
+          delete-branch:  false
+          title:          "[Automated] Refresh queries.txt – ${{ github.run_id }}"
+          body: |
+            ## Automated refresh of `queries.txt`
+
+            This pull request was opened automatically by the
+            **Update queries.txt from KQL source** workflow.
+
+            | Field | Value |
+            |---|---|
+            | Triggered by | `${{ github.event_name }}` |
+            | Workflow run | [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+            | Commit SHA | `${{ github.sha }}` |
+
+            ### What changed?
+            The `queries.txt` file has been refreshed from the Log Analytics
+            workspace query output. Each line represents one Azure Resource
+            Graph KQL query used to detect resources impacted by a specific
+            Azure service retirement.
+
+            ### Validation
+            The updated file has been validated by `scripts/validate-queries.ps1`
+            to confirm that every query contains the required metadata fields
+            (`RetiringFeature`, `RetirementDate`, `LearnMoreLink`).
+
+            Please review the diff and merge when satisfied.
+          labels: |
+            automated
+            queries-update
