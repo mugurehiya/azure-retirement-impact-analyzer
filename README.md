@@ -1,4 +1,25 @@
-# Azure Retiring Feature Impact Assessment Tool
+# Azure Service Retirement – Impact Assessment Tool
+
+This repository provides **Azure Resource Graph (ARG) queries** and a **PowerShell utility**
+to help customers identify Azure resources that are impacted by specific Azure service retirements.
+ 
+The PowerShell script automatically executes **read-only ARG queries** that are maintained in a
+separate text file and outputs the results locally for customer review.
+
+## What is included
+ 
+- `queries.txt`
+  - A maintained set of Azure Resource Graph (KQL) queries
+  - Each query corresponds to a specific Azure service retirement
+  - Includes retirement metadata and a public “Learn more” URL
+  - **Reviewed and refreshed on a regular cadence (every 2 weeks)**
+ 
+- `Get-RetirementImpactedResources.ps1`
+  - PowerShell script to execute the ARG queries
+  - Aggregates results across subscriptions accessible to the signed-in user
+  - Outputs results to console and/or CSV
+ 
+---
 
 ## Prerequisites
 
@@ -23,16 +44,13 @@ YourFolder\
 
 ## Usage
 
-```powershell
-# All subscriptions
-.\run-arg-queries.ps1
-
-# Specific subscription
-.\run-arg-queries.ps1 -Subscriptions "<your-subscription-id>"
-
-# Multiple subscriptions
-.\run-arg-queries.ps1 -Subscriptions "<sub-id-1>","<sub-id-2>"
-```
+- The script runs **only in the customer’s Azure tenant**
+- Queries are executed using the **current user’s Azure context**
+- All operations are **read-only**
+- No resources are modified
+- No data is transmitted outside the customer environment
+ 
+---
 
 ## Output
 
@@ -70,72 +88,25 @@ This is expected when no resources are impacted. Check the console output — it
 
 ---
 
-# Azure 退役功能影响评估工具
+## Important notes
+ 
+- This repository contains **maintained discovery utilities**, not ad-hoc samples
+- There is **no SLA or official support guarantee**
+- Customers are responsible for validating results before taking any action
+- Azure access permissions determine what resources are visible
+ 
+---
+ 
+## Security & Compliance
+ 
+- No secrets, credentials, or tokens are included
+- No customer data is collected or sent externally
+- No write, update, or delete operations are performed
+- The script requires explicit user consent before execution
+ 
+---
+ 
+## License
+ 
+This project is licensed under the MIT License.
 
-## 前置条件
-
-1. **Azure CLI**
-   - 安装：https://learn.microsoft.com/cli/azure/install-azure-cli
-   - 运行脚本前请先登录：
-     ```
-     az login --environment AzureChinaCloud
-     ```
-
-2. **PowerShell** — 适用于 PowerShell 5.1+（Windows 自带）
-
-## 文件结构
-
-请将以下文件放在**同一个文件夹**中：
-
-```
-YourFolder\
-├── run-arg-queries.ps1   (脚本)
-└── queries.txt           (查询文件，已提供)
-```
-
-## 使用方法
-
-```powershell
-# 查询所有订阅
-.\run-arg-queries.ps1
-
-# 指定订阅
-.\run-arg-queries.ps1 -Subscriptions "<your-subscription-id>"
-
-# 多个订阅
-.\run-arg-queries.ps1 -Subscriptions "<sub-id-1>","<sub-id-2>"
-```
-
-## 输出说明
-
-- 控制台会显示每个退役功能的受影响资源。
-- 如果有受影响的资源，会在同一文件夹下生成 `impactedresources.csv` 文件。
-- 如果没有受影响的资源，不会生成 CSV 文件——这说明您的环境未受影响。
-
-## 常见问题
-
-**1. 执行策略报错**
-
-如果提示"文件未经数字签名，无法加载"：
-
-```powershell
-Unblock-File .\run-arg-queries.ps1
-```
-
-或单次绕过执行策略：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\run-arg-queries.ps1
-```
-
-**2. 未登录 Azure CLI**
-
-如果出现认证错误，请先登录：
-
-```
-az login --environment AzureChinaCloud
-```
-
-**3. 没有生成输出文件**
-
-这是正常现象，说明没有受影响的资源。请查看控制台输出，应显示 "No resources impacted"。
