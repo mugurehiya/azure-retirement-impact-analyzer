@@ -1,0 +1,16 @@
+// Fetch active Azure retirement ARG queries from the maintenance workspace.
+//
+// Expected table: RetirementQueries_CL
+// Required columns (Log Analytics custom log schema):
+//   - Query_s         : string  – the full single-line ARG KQL query
+//   - IsActive_b      : bool    – true = include in published queries.txt
+//   - RetirementDate_t: datetime – used for ordering (earliest first)
+//
+// Adjust the table/column names below to match your workspace schema.
+// If your schema differs you can supply a complete override via the
+// KQL_QUERY_OVERRIDE secret (see README section on customisation).
+
+RetirementQueries_CL
+| where IsActive_b == true
+| order by RetirementDate_t asc
+| project Query_s
